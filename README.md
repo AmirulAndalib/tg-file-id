@@ -257,6 +257,7 @@ Photo IDs can also contain:
 | `dialogAccessHash` | `bigint` or `number` | Dialog access hash for profile photos. |
 | `stickerSetId` | `bigint` or `number` | Sticker set identifier for its thumbnail. |
 | `stickerSetAccessHash` | `bigint` or `number` | Sticker set access hash. |
+| `stickerSetVersion` | `number` | Sticker set thumbnail version, when present. |
 
 On a `FileId` instance, the decoded `access_hash` field is available as
 `accessHash`. The instance also uses `photoSizeSourceId` for the numeric source

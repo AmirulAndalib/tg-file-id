@@ -11,6 +11,12 @@ class Util {
   static PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL = 2;
   static PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG = 3;
   static PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL = 4;
+  static PHOTOSIZE_SOURCE_FULL_LEGACY = 5;
+  static PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL_LEGACY = 6;
+  static PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG_LEGACY = 7;
+  static PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_LEGACY = 8;
+  static PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_VERSION = 9;
+  static VERSION_REMOVE_PHOTO_VOLUME_AND_LOCAL_ID = 32;
   static UNIQUE_WEB = 0;
   static UNIQUE_PHOTO = 1;
   static UNIQUE_DOCUMENT = 2;
@@ -232,39 +238,88 @@ class Util {
     out.id = rlDecoded.readBigInt64LE()
     out.access_hash = rlDecoded.readBigInt64LE(8);
     rlDecoded = rlDecoded.slice(128 / 8);
-    // its photo
+    // Photo layouts changed in TDLib version 32. Newer IDs store the
+    // PhotoSizeSource variant directly, without outer volume/local IDs.
     if (out.typeId <= 2) {
-      out.volumeId = rlDecoded.readBigInt64LE();
       out.secret = 0;
-      out.photoSizeSource = out.version >= 4 ? rlDecoded.readUInt32LE(8) : 0;
+      const modernPhotoLayout =
+          out.version >= 4
+          && out.subVersion >= Util.VERSION_REMOVE_PHOTO_VOLUME_AND_LOCAL_ID;
+      const sourceOffset = modernPhotoLayout ? 0 : 8;
+
+      if (!modernPhotoLayout) {
+        out.volumeId = rlDecoded.readBigInt64LE();
+      }
+
+      out.photoSizeSource = out.version >= 4
+          ? rlDecoded.readUInt32LE(sourceOffset)
+          : Util.PHOTOSIZE_SOURCE_LEGACY;
+      const dataOffset = out.version >= 4 ? sourceOffset + 4 : 8;
 
       switch (out.photoSizeSource) {
         case Util.PHOTOSIZE_SOURCE_LEGACY:
-          out.secret = rlDecoded.readBigInt64LE(12);
-          out.localId = rlDecoded.readInt32LE(20);
+          out.secret = rlDecoded.readBigInt64LE(dataOffset);
+          if (!modernPhotoLayout) {
+            out.localId = rlDecoded.readInt32LE(dataOffset + 8);
+          }
           break;
         case Util.PHOTOSIZE_SOURCE_THUMBNAIL:
-          let typeId = rlDecoded.readUInt32LE(12);
+          let typeId = rlDecoded.readUInt32LE(dataOffset);
           out.fileType = Util.TYPES[typeId];
           out.thumbTypeId = typeId;
-          out.thumbnailType = rlDecoded.slice(16, 20).toString().replace(/\u0000/g, '')
-          out.localId = rlDecoded.readInt32LE(20);
+          out.thumbnailType = rlDecoded.slice(dataOffset + 4, dataOffset + 8)
+              .toString()
+              .replace(/\u0000/g, '')
+          if (!modernPhotoLayout) {
+            out.localId = rlDecoded.readInt32LE(dataOffset + 8);
+          }
           break;
         case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG:
         case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL:
           out.photoSize = out.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL ? "small" : 'big';
-          out.dialogId = rlDecoded.readBigInt64LE(12);
-          out.dialogAccessHash = rlDecoded.readBigInt64LE(20);
-          out.localId = rlDecoded.readInt32LE(28);
+          out.dialogId = rlDecoded.readBigInt64LE(dataOffset);
+          out.dialogAccessHash = rlDecoded.readBigInt64LE(dataOffset + 8);
+          if (!modernPhotoLayout) {
+            out.localId = rlDecoded.readInt32LE(dataOffset + 16);
+          }
           break;
         case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL:
-          out.stickerSetId = rlDecoded.readBigInt64LE(12);
-          out.stickerSetAccessHash = rlDecoded.readBigInt64LE(20)
-          out.localId = rlDecoded.readInt32LE(28);
+          out.stickerSetId = rlDecoded.readBigInt64LE(dataOffset);
+          out.stickerSetAccessHash = rlDecoded.readBigInt64LE(dataOffset + 8)
+          if (!modernPhotoLayout) {
+            out.localId = rlDecoded.readInt32LE(dataOffset + 16);
+          }
           break;
+        case Util.PHOTOSIZE_SOURCE_FULL_LEGACY:
+          out.volumeId = rlDecoded.readBigInt64LE(dataOffset);
+          out.secret = rlDecoded.readBigInt64LE(dataOffset + 8);
+          out.localId = rlDecoded.readInt32LE(dataOffset + 16);
+          break;
+        case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL_LEGACY:
+        case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG_LEGACY:
+          out.photoSize =
+              out.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL_LEGACY
+                  ? "small"
+                  : "big";
+          out.dialogId = rlDecoded.readBigInt64LE(dataOffset);
+          out.dialogAccessHash = rlDecoded.readBigInt64LE(dataOffset + 8);
+          out.volumeId = rlDecoded.readBigInt64LE(dataOffset + 16);
+          out.localId = rlDecoded.readInt32LE(dataOffset + 24);
+          break;
+        case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_LEGACY:
+          out.stickerSetId = rlDecoded.readBigInt64LE(dataOffset);
+          out.stickerSetAccessHash = rlDecoded.readBigInt64LE(dataOffset + 8);
+          out.volumeId = rlDecoded.readBigInt64LE(dataOffset + 16);
+          out.localId = rlDecoded.readInt32LE(dataOffset + 24);
+          break;
+        case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_VERSION:
+          out.stickerSetId = rlDecoded.readBigInt64LE(dataOffset);
+          out.stickerSetAccessHash = rlDecoded.readBigInt64LE(dataOffset + 8);
+          out.stickerSetVersion = rlDecoded.readInt32LE(dataOffset + 16);
+          break;
+        default:
+          throw new Error("Unsupported photo size source: " + out.photoSizeSource);
       }
-
-
     }
     return out;
   }

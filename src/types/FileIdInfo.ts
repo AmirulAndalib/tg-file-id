@@ -18,7 +18,8 @@ export type FileIdInfo = {
   dialogId?: number | bigint,
   dialogAccessHash?: number | bigint
   stickerSetId?: number | bigint,
-  stickerSetAccessHash?: number | bigint
+  stickerSetAccessHash?: number | bigint,
+  stickerSetVersion?: number,
   localId?: number,
   thumbTypeId?: number
 }

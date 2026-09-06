@@ -1,6 +1,6 @@
 {
   "name": "tg-file-id",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Decode, encode, and convert Telegram Bot API file IDs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

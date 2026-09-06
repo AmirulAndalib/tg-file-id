@@ -23,6 +23,7 @@ class FileId {
 
   public stickerSetId?: number | bigint;
   public stickerSetAccessHash?: number | bigint;
+  public stickerSetVersion?: number;
 
   public thumbType?: string;
   public thumbTypeId?: number;
@@ -56,6 +57,7 @@ class FileId {
 
     switch (inst.photoSizeSourceId) {
       case Util.PHOTOSIZE_SOURCE_LEGACY:
+      case Util.PHOTOSIZE_SOURCE_FULL_LEGACY:
         inst.secret = decoded.secret;
         inst.photoSizeSource = 'legacy';
         break;
@@ -66,15 +68,22 @@ class FileId {
         break;
       case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL:
       case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG:
+      case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL_LEGACY:
+      case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG_LEGACY:
         inst.photoSizeSource = 'dialogPhoto';
         inst.dialogId = decoded.dialogId;
         inst.dialogAccessHash = decoded.dialogAccessHash
-        inst.isSmallDialogPhoto = decoded.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL;
+        inst.isSmallDialogPhoto =
+            decoded.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL
+            || decoded.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL_LEGACY;
         break;
       case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL:
+      case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_LEGACY:
+      case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_VERSION:
         inst.photoSizeSource = 'stickerSetThumbnail';
         inst.stickerSetId = decoded.stickerSetId;
         inst.stickerSetAccessHash = decoded.stickerSetAccessHash;
+        inst.stickerSetVersion = decoded.stickerSetVersion;
         break;
     }
 
@@ -108,43 +117,105 @@ class FileId {
     out += Util.to64bitBuffer(this.id);
     out += Util.to64bitBuffer(this.accessHash);
 
-    if (
-      this.typeId <= 2
-      && this.volumeId !== undefined
-      && this.photoSizeSourceId !== undefined
-    ) {
-      out += Util.to64bitBuffer(this.volumeId);
+    if (this.typeId <= 2) {
+      if (this.photoSizeSourceId === undefined) {
+        throw new Error("Missing photo size source");
+      }
+
+      const modernPhotoLayout =
+          this.version >= 4
+          && this.subVersion >= Util.VERSION_REMOVE_PHOTO_VOLUME_AND_LOCAL_ID;
+
+      if (!modernPhotoLayout) {
+        if (this.volumeId === undefined) throw new Error("Missing volume id");
+        out += Util.to64bitBuffer(this.volumeId);
+      }
       if (this.version >= 4) {
         out += Util.to32bitBuffer(this.photoSizeSourceId);
       }
-      switch (this.photoSizeSource) {
-        case "legacy":
+
+      switch (this.photoSizeSourceId) {
+        case Util.PHOTOSIZE_SOURCE_LEGACY:
           if (this.secret === undefined) throw new Error("Missing photo secret");
           out += Util.to64bitBuffer(BigInt(this.secret));
           break;
-        case "thumbnail":
+        case Util.PHOTOSIZE_SOURCE_THUMBNAIL:
           if (this.thumbTypeId === undefined) throw new Error("Missing thumbnail type");
           out += Util.to32bitBuffer(this.thumbTypeId);
           out += this.thumbType?.padEnd(4, "\0");
           break;
-        case "dialogPhoto":
+        case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL:
+        case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG:
           if (this.dialogId === undefined || this.dialogAccessHash === undefined) {
             throw new Error("Missing dialog photo data");
           }
           out += Util.to64bitBuffer(BigInt(this.dialogId));
           out += Util.to64bitBuffer(BigInt(this.dialogAccessHash));
           break;
-        case "stickerSetThumbnail":
+        case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL:
           if (this.stickerSetId === undefined || this.stickerSetAccessHash === undefined) {
             throw new Error("Missing sticker set data");
           }
           out += Util.to64bitBuffer(BigInt(this.stickerSetId));
           out += Util.to64bitBuffer(BigInt(this.stickerSetAccessHash))
           break;
+        case Util.PHOTOSIZE_SOURCE_FULL_LEGACY:
+          if (this.volumeId === undefined || this.secret === undefined || this.localId === undefined) {
+            throw new Error("Missing legacy photo data");
+          }
+          out += Util.to64bitBuffer(this.volumeId);
+          out += Util.to64bitBuffer(BigInt(this.secret));
+          out += Util.to32bitSignedBuffer(Number(this.localId));
+          break;
+        case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL_LEGACY:
+        case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG_LEGACY:
+          if (
+            this.dialogId === undefined
+            || this.dialogAccessHash === undefined
+            || this.volumeId === undefined
+            || this.localId === undefined
+          ) {
+            throw new Error("Missing legacy dialog photo data");
+          }
+          out += Util.to64bitBuffer(BigInt(this.dialogId));
+          out += Util.to64bitBuffer(BigInt(this.dialogAccessHash));
+          out += Util.to64bitBuffer(this.volumeId);
+          out += Util.to32bitSignedBuffer(Number(this.localId));
+          break;
+        case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_LEGACY:
+          if (
+            this.stickerSetId === undefined
+            || this.stickerSetAccessHash === undefined
+            || this.volumeId === undefined
+            || this.localId === undefined
+          ) {
+            throw new Error("Missing legacy sticker set data");
+          }
+          out += Util.to64bitBuffer(BigInt(this.stickerSetId));
+          out += Util.to64bitBuffer(BigInt(this.stickerSetAccessHash));
+          out += Util.to64bitBuffer(this.volumeId);
+          out += Util.to32bitSignedBuffer(Number(this.localId));
+          break;
+        case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL_VERSION:
+          if (
+            this.stickerSetId === undefined
+            || this.stickerSetAccessHash === undefined
+            || this.stickerSetVersion === undefined
+          ) {
+            throw new Error("Missing versioned sticker set data");
+          }
+          out += Util.to64bitBuffer(BigInt(this.stickerSetId));
+          out += Util.to64bitBuffer(BigInt(this.stickerSetAccessHash));
+          out += Util.to32bitSignedBuffer(this.stickerSetVersion);
+          break;
+        default:
+          throw new Error("Unsupported photo size source: " + this.photoSizeSourceId);
       }
-      if (this.localId === undefined) throw new Error("Missing local id");
-      out += Util.to32bitSignedBuffer(Number(this.localId));
 
+      if (!modernPhotoLayout) {
+        if (this.localId === undefined) throw new Error("Missing local id");
+        out += Util.to32bitSignedBuffer(Number(this.localId));
+      }
     }
     if (this.version >= 4) {
       out += String.fromCharCode(this.subVersion);

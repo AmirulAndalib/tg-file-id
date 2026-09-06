@@ -58,6 +58,20 @@ describe('Testing some file_ids', function() {
       });
     });
   }
+  it('should decode and re-encode a modern profile photo', function() {
+    const fileId = 'AQADAgADWeIxGwLIeEsACAIAA9ZXYWEABCnv1_KtY_M1NgQ';
+    const output = tgFileId.decodeFileId(fileId);
+
+    assert.strictEqual(output.version, 4);
+    assert.strictEqual(output.subVersion, 54);
+    assert.strictEqual(output.fileType, 'profile_photo');
+    assert.strictEqual(output.photoSize, 'small');
+    assert.strictEqual(output.dialogId, 1633769430n);
+    assert.strictEqual(output.dialogAccessHash, 3887560502105599785n);
+    assert.strictEqual(output.volumeId, undefined);
+    assert.strictEqual(output.localId, undefined);
+    assert.strictEqual(FileId.fromFileId(fileId).toFileId(), fileId);
+  });
   describe('Sticker thumb', function() {
     it('should be thumbnail and has stickerSetId', function() {
       let output = tgFileId.decodeFileId('AAQEABPWoT0jXQADBAADDwADyPrsE2HR5gsnLl4rPkYAAh4E');
