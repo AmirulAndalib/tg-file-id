@@ -46,6 +46,34 @@ class Util {
     'temp'
   ];
 
+  static fileTypeToUniqueType(typeId: number, hasWebLocation = false) {
+    if (hasWebLocation) {
+      return Util.UNIQUE_WEB;
+    }
+
+    if (typeId >= 0 && typeId <= 2) {
+      return Util.UNIQUE_PHOTO;
+    }
+
+    if ([3, 4, 5, 8, 9, 10, 12, 13, 16].includes(typeId)) {
+      return Util.UNIQUE_DOCUMENT;
+    }
+
+    if (typeId === 6 || typeId === 11) {
+      return Util.UNIQUE_ENCRYPTED;
+    }
+
+    if (typeId === 7) {
+      return Util.UNIQUE_TEMP;
+    }
+
+    if (typeId === 14 || typeId === 15) {
+      return Util.UNIQUE_SECURE;
+    }
+
+    throw new Error("Unsupported file type: " + typeId);
+  }
+
   private static rleDecode(input: Buffer) {
     let last = '',
         news = '', splited = input.toString('binary');
@@ -177,7 +205,7 @@ class Util {
 
   static decodeFileId(fileId: string): FileIdInfo {
     let base64Decoded = Util.base64UrlDecode(fileId);
-    let rlDecoded = Util.rleDecode(base64Decoded);
+    let rlDecoded: Buffer = Util.rleDecode(base64Decoded);
     let out: FileIdInfo = {} as FileIdInfo;
     out.version = rlDecoded[rlDecoded.length - 1]
     out.subVersion = out.version === 4 ? rlDecoded[rlDecoded.length - 2] : 0
@@ -256,13 +284,17 @@ class Util {
       let {x} = Util.readTLString(rlDecoded.slice())
       out.url = x.toString();
 
-    } else if (rlDecoded.length === 12) {
+    } else if (out.typeId === Util.UNIQUE_PHOTO) {
+      if (rlDecoded.length !== 12) {
+        throw new Error("Invalid photo unique file id");
+      }
       out.volumeId = rlDecoded.readBigInt64LE();
-      out.localId = rlDecoded.readUInt32LE(8);
+      out.localId = rlDecoded.readInt32LE(8);
 
-    } else {
+    } else if (rlDecoded.length === 8) {
       out.id = rlDecoded.readBigInt64LE();
-
+    } else {
+      throw new Error("Invalid unique file id payload");
     }
     return out;
 

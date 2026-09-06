@@ -1,15 +1,21 @@
 {
 	"compilerOptions": {
 		"strict": true,
-		"module": "CommonJS",
-		"target": "es2017",
+		"module": "Node16",
+		"target": "es2020",
 		"noImplicitAny": true,
 		"declaration": true,
-		"moduleResolution": "Node",
+		"moduleResolution": "Node16",
 		"sourceMap": true,
+		"types": ["node"],
+		"rootDir": "./src",
 		"outDir": "./dist"
 	},
+	"include": [
+		"src/**/*.ts"
+	],
 	"exclude": [
-		"node_modules"
+		"node_modules",
+		"dist"
 	]
 }

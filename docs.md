@@ -1,5 +1,5 @@
 ### tg-file-id 
-A simple nodejs module to decode file\_id and file\_uniq\_id of telegram bots 
+A Node.js module to decode, encode, and convert Telegram Bot API file IDs.
 ### install 
 ```bash 
 npm install tg-file-id --save
@@ -14,8 +14,8 @@ npm install tg-file-id --save
 `url` : Url web locations.  
 `id` : The id of file.  
 `accessHash` : The accessHash of file.  
-`volumeId` : Volume id of file. If you didn't know the volumeId of your file. You can fill it with `BigInt(1)`.  
-`localId` : Local id of file. If you didn't know the localId of your file. You can fill it with `0`.  
+`volumeId` : Volume id of the file. Required for photo file IDs.
+`localId` : Local id of the file. Required for photo file IDs.
 `photoSizeSource` : Specific photo type (string), the type is same with phototype. You can see list of photoSizeSource in [here](#phototype).  
 `photoSizeSourceId` : Specific photo type (number), the number is same with phototype. You can see list of photoSizeSource in [here](#phototype).  
 `secret` : Secret id.  
@@ -26,6 +26,17 @@ npm install tg-file-id --save
 `stickerSetAccessHash` : Access hash of sticker set.  
 `thumbType` : Thumbnail type (string), the type is same with phototype. You can see list of thumbnail type in [here](#phototype).  
 `thumbTypeId` : Thumbnail type (number), the number is same with phototype. You can see list of thumbnail type in [here](#phototype).  
+
+### API methods
+`decodeFileId(fileId)` : Decode a Bot API file ID.
+`encodeFileId(decoded)` : Recreate a file ID from a decoded result.
+`decodeUniqFileId(fileUniqueId)` : Decode a unique file ID.
+`FileId.fromFileId(fileId)` : Create an editable `FileId` instance.
+`FileId.fromDecoded(decoded)` : Create a `FileId` from a decoded result.
+`FileId#toFileId()` : Encode the instance as a file ID.
+`FileId#toFileUniqId()` : Derive its unique file ID.
+`FileUniqId.fromFileUniqId(fileUniqueId)` : Create a unique ID instance.
+`FileUniqId#toFileUniqId()` : Encode the unique ID instance.
 
 ### fileType 
 `thumbnail` : `0`  

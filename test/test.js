@@ -1,7 +1,7 @@
 var assert = require('assert');
 var tgFileId = require('../dist/index');
-var FileId = require('../dist/FileId').default;
-var FileUniqId = require('../dist/FileUniqId').default;
+var FileId = tgFileId.FileId;
+var FileUniqId = tgFileId.FileUniqId;
 describe('Testing some file_ids', function() {
   let fileIds = {
     sticker: 'CAACAgEAAxkBAAEE3SRgO-OW-HDMHW5rOGsSFWhZScQl4AAC8BIAApa4VwXGFC4AAaCSsQMeBA',
@@ -18,14 +18,33 @@ describe('Testing some file_ids', function() {
       it('should return same fileId', function() {
         let fId = FileId.fromFileId(fileIds[key]);
         assert.strictEqual(fileIds[key], fId.toFileId());
+        assert.strictEqual(fileIds[key], tgFileId.encodeFileId(tgFileId.decodeFileId(fileIds[key])));
       });
-      it('should return same id for FileUniqId and FileId', function() {
+      it('should create a valid unique id', function() {
         let fId = FileId.fromFileId(fileIds[key]);
         let fU = FileUniqId.fromFileId(fileIds[key]);
         assert.strictEqual(fId.id, fU.id);
+        let encoded = fU.toFileUniqId();
+        let decoded = tgFileId.decodeUniqFileId(encoded);
+        if (key === 'photo') {
+          assert.strictEqual(decoded.type, 'photo');
+          assert.strictEqual(decoded.volumeId, fId.volumeId);
+          assert.strictEqual(decoded.localId, fId.localId);
+        } else {
+          assert.strictEqual(decoded.type, 'document');
+          assert.strictEqual(decoded.id, fId.id);
+        }
       });
     });
   }
+  it('should convert known voice and audio ids to Telegram unique ids', function() {
+    assert.strictEqual(FileId.fromFileId(fileIds.voice).toFileUniqId(), 'AgADuwgAAj0d4FE');
+    assert.strictEqual(FileId.fromFileId(fileIds.audio).toFileUniqId(), 'AgADqQkAAjp72FE');
+  });
+
+  it('should convert a photo using volumeId and localId', function() {
+    assert.strictEqual(FileId.fromFileId(fileIds.photo).toFileUniqId(), 'AQADD6WAJ10AAzavBQAB');
+  });
   let profileFileIds = {
     small: 'AQADBAADwawxGxMjtgcACDvytxsABAIAAxMjtgcABPqM9f80seQ8I7wHAAEeBA',
     big:   'AQADBAADwawxGxMjtgcACDvytxsABAMAAxMjtgcABPqM9f80seQ8JbwHAAEeBA',
@@ -72,6 +91,10 @@ describe('Testing some file_uniq_ids', function() {
         }
         assert.strictEqual(out.typeId, fileUniqIds[type].typeId);
         assert.strictEqual(type, out.type);
+        assert.strictEqual(
+          FileUniqId.fromFileUniqId(fileUniqIds[type].fid).toFileUniqId(),
+          fileUniqIds[type].fid
+        );
       });
     });
   }
@@ -85,22 +108,25 @@ describe('Test convert from mtproto to bot api', function() {
   fileId.id = BigInt(value.document.id);
   fileId.accessHash = BigInt(value.document.accessHash);
   fileId.fileReference = Buffer.from(Uint8Array.from(Object.values(value.document.fileReference.data))).toString('hex');
-  console.log(fileId.fileReference);
   fileId.fileType = 'sticker';
   fileId.version = 4;
   fileId.subVersion = 30;
   fileId.dcId = 5;
 
   const file_id = fileId.toFileId();
-  console.log('gen:', file_id);
-
+  it('should encode and decode the mtproto document', function() {
+    const decoded = tgFileId.decodeFileId(file_id);
+    assert.strictEqual(decoded.fileType, 'sticker');
+    assert.strictEqual(decoded.id, BigInt(value.document.id));
+    assert.strictEqual(decoded.access_hash, BigInt(value.document.accessHash));
+    assert.strictEqual(FileId.fromFileId(file_id).toFileId(), file_id);
+  });
 });
 
 describe('Test sticker owner id', function() {
   let fileIdStr = 'CAACAgIAAxkBAAIEVF9Do80olppb0490gLH2I1cszuoMAALcCQACAoujAAEqUB3Wl6aD6BsE';
   let fileId = FileId.fromFileId(fileIdStr);
   let owner = fileId.getOwnerId();
-  console.log(owner);
   it('should be 10717954', function() {
     assert.strictEqual( owner,10717954);
   });

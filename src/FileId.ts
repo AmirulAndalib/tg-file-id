@@ -1,6 +1,6 @@
-import {decodeFileId} from "./index";
 import Util from "./Util";
 import FileUniqId from "./FileUniqId";
+import {FileIdInfo} from "./types/FileIdInfo";
 
 class FileId {
   public version = 0;
@@ -31,62 +31,55 @@ class FileId {
   constructor() {
   }
 
-
   static fromFileId(fileId: string) {
     try {
-      let decoded = decodeFileId(fileId);
-      let inst = new FileId();
-      inst.version = decoded.version;
-      inst.subVersion = decoded.subVersion;
-      inst.dcId = decoded.dcId;
-      inst.typeId = decoded.typeId;
-      inst.fileType = decoded.fileType;
-      if (decoded.hasReference) {
-        inst.fileReference = decoded.fileReference;
-      }
-      if (decoded.hasWebLocation) {
-        inst.url = decoded.url;
-        return inst;
-      }
-      inst.id = decoded.id;
-      inst.accessHash = decoded.access_hash;
-      if (decoded.typeId <= 2) {
-        inst.volumeId = decoded.volumeId;
-        inst.localId = decoded.localId;
-        inst.photoSizeSourceId = decoded.photoSizeSource;
-        switch (inst.photoSizeSourceId) {
-          case Util.PHOTOSIZE_SOURCE_LEGACY:
-            inst.secret = decoded.secret;
-            inst.photoSizeSource = 'legacy';
-            break;
-          case Util.PHOTOSIZE_SOURCE_THUMBNAIL:
-            inst.thumbType = decoded.thumbnailType;
-            inst.photoSizeSource = 'thumbnail';
-            inst.thumbTypeId = decoded.thumbTypeId;
-            break;
-          case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL:
-          case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG:
-            inst.photoSizeSource = 'dialogPhoto';
-            inst.dialogId = decoded.dialogId;
-            inst.dialogAccessHash = decoded.dialogAccessHash
-            inst.isSmallDialogPhoto = decoded.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL;
-            break;
-
-          case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL:
-            inst.photoSizeSource = 'stickerSetThumbnail';
-            inst.stickerSetId = decoded.stickerSetId;
-            inst.stickerSetAccessHash = decoded.stickerSetAccessHash;
-            break;
-        }
-      }
-      return inst;
+      return FileId.fromDecoded(Util.decodeFileId(fileId));
     } catch (e) {
-      console.log(e);
       throw new Error("Invalid fileId")
     }
-
   }
 
+  static fromDecoded(decoded: FileIdInfo) {
+    let inst = new FileId();
+    inst.version = decoded.version;
+    inst.subVersion = decoded.subVersion;
+    inst.dcId = decoded.dcId;
+    inst.typeId = decoded.typeId;
+    inst.fileType = decoded.fileType;
+    inst.fileReference = decoded.fileReference;
+    inst.url = decoded.url;
+    inst.id = decoded.id;
+    inst.accessHash = decoded.access_hash;
+    inst.volumeId = decoded.volumeId;
+    inst.localId = decoded.localId;
+    inst.photoSizeSourceId = decoded.photoSizeSource;
+
+    switch (inst.photoSizeSourceId) {
+      case Util.PHOTOSIZE_SOURCE_LEGACY:
+        inst.secret = decoded.secret;
+        inst.photoSizeSource = 'legacy';
+        break;
+      case Util.PHOTOSIZE_SOURCE_THUMBNAIL:
+        inst.thumbType = decoded.thumbnailType;
+        inst.photoSizeSource = 'thumbnail';
+        inst.thumbTypeId = decoded.thumbTypeId;
+        break;
+      case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL:
+      case Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_BIG:
+        inst.photoSizeSource = 'dialogPhoto';
+        inst.dialogId = decoded.dialogId;
+        inst.dialogAccessHash = decoded.dialogAccessHash
+        inst.isSmallDialogPhoto = decoded.photoSizeSource === Util.PHOTOSIZE_SOURCE_DIALOGPHOTO_SMALL;
+        break;
+      case Util.PHOTOSIZE_SOURCE_STICKERSET_THUMBNAIL:
+        inst.photoSizeSource = 'stickerSetThumbnail';
+        inst.stickerSetId = decoded.stickerSetId;
+        inst.stickerSetAccessHash = decoded.stickerSetAccessHash;
+        break;
+    }
+
+    return inst;
+  }
 
   toFileId(): string {
     let type = this.typeId;
@@ -115,36 +108,42 @@ class FileId {
     out += Util.to64bitBuffer(this.id);
     out += Util.to64bitBuffer(this.accessHash);
 
-    if (this.typeId <= 2 && this.volumeId && this.photoSizeSourceId) {
+    if (
+      this.typeId <= 2
+      && this.volumeId !== undefined
+      && this.photoSizeSourceId !== undefined
+    ) {
       out += Util.to64bitBuffer(this.volumeId);
       if (this.version >= 4) {
         out += Util.to32bitBuffer(this.photoSizeSourceId);
       }
       switch (this.photoSizeSource) {
         case "legacy":
-          // @ts-ignore
-          out += Util.to64bitBuffer(this.secret);
+          if (this.secret === undefined) throw new Error("Missing photo secret");
+          out += Util.to64bitBuffer(BigInt(this.secret));
           break;
         case "thumbnail":
-          // @ts-ignore
+          if (this.thumbTypeId === undefined) throw new Error("Missing thumbnail type");
           out += Util.to32bitBuffer(this.thumbTypeId);
           out += this.thumbType?.padEnd(4, "\0");
           break;
         case "dialogPhoto":
-          // @ts-ignore
-          out += Util.to64bitBuffer(this.dialogId);
-          // @ts-ignore
-          out += Util.to64bitBuffer(this.dialogAccessHash);
+          if (this.dialogId === undefined || this.dialogAccessHash === undefined) {
+            throw new Error("Missing dialog photo data");
+          }
+          out += Util.to64bitBuffer(BigInt(this.dialogId));
+          out += Util.to64bitBuffer(BigInt(this.dialogAccessHash));
           break;
         case "stickerSetThumbnail":
-          // @ts-ignore
-          out += Util.to64bitBuffer(this.stickerSetId);
-          // @ts-ignore
-          out += Util.to64bitBuffer(this.stickerSetAccessHash)
+          if (this.stickerSetId === undefined || this.stickerSetAccessHash === undefined) {
+            throw new Error("Missing sticker set data");
+          }
+          out += Util.to64bitBuffer(BigInt(this.stickerSetId));
+          out += Util.to64bitBuffer(BigInt(this.stickerSetAccessHash))
           break;
       }
-      // @ts-ignore
-      out += Util.to32bitSignedBuffer(this.localId);
+      if (this.localId === undefined) throw new Error("Missing local id");
+      out += Util.to32bitSignedBuffer(Number(this.localId));
 
     }
     if (this.version >= 4) {
@@ -160,7 +159,6 @@ class FileId {
 
   getOwnerId() {
     if (this.typeId === Util.TYPES.indexOf('sticker') && (this.version === 4 || this.version === 2)) {
-      console.log(this.id)
       let tmp = Buffer.alloc(8);
       tmp.writeBigInt64LE(this.id & BigInt('72057589742960640'));
       return tmp.readUInt32LE(4);
@@ -170,7 +168,3 @@ class FileId {
 }
 
 export default FileId;
-// php
-// 030000020400000019010004dd26603be3db1e55adc51b7970f5af5e51915875ccdc0000bb0800003d1de0517f8effa2ffeee2411e04
-//node
-// 030000020400000019010004dd26603be3db1e55adc51b7970f5af5e51915875ccdc0000bb0800003d1de05100000000000000001e04
